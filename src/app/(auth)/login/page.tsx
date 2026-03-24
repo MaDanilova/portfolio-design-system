@@ -49,7 +49,7 @@ export default function LoginPage() {
 
         {error && (
           <div className="mb-4">
-            <Alert variant="error" title="Sign in failed" dismissible onDismiss={() => setError(null)}>
+            <Alert status="error" title="Sign in failed" dismissible onDismiss={() => setError(null)}>
               {error}
             </Alert>
           </div>

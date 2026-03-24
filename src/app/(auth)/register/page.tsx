@@ -67,7 +67,7 @@ export default function RegisterPage() {
 
         {error && (
           <div className="mb-4">
-            <Alert variant="error" title="Registration failed" dismissible onDismiss={() => setError(null)}>
+            <Alert status="error" title="Registration failed" dismissible onDismiss={() => setError(null)}>
               {error}
             </Alert>
           </div>

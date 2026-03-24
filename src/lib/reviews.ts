@@ -104,7 +104,7 @@ export function isNewScores(scores: ReviewScores | LegacyScores): scores is Revi
 
 export function getScoreEntries(scores: ReviewScores | LegacyScores): [string, number][] {
   const keys = isNewScores(scores) ? NEW_SCORE_KEYS : LEGACY_SCORE_KEYS;
-  return keys.map((k) => [k, (scores as Record<string, number>)[k]]);
+  return keys.map((k) => [k, (scores as unknown as Record<string, number>)[k]]);
 }
 
 // --- Validation ---
