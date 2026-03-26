@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
@@ -10,6 +11,9 @@ import { Button } from "@/components/Button";
 import { Avatar } from "@/components/Avatar";
 import { Divider } from "@/components/Divider";
 import { Modal } from "@/components/Modal";
+import { Alert } from "@/components/Alert";
+import { Spinner } from "@/components/Spinner";
+import { createClient } from "@/lib/supabase/client";
 
 const focusOptions = [
   { value: "full", label: "Full Review" },
@@ -19,12 +23,226 @@ const focusOptions = [
   { value: "storytelling", label: "Storytelling" },
 ];
 
+interface ProfileData {
+  full_name: string;
+  email: string;
+  initials: string;
+  default_focus: string;
+  typography_audit: boolean;
+  storytelling: boolean;
+  email_notify: boolean;
+}
+
 export default function SettingsPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+
+  // Profile form
+  const [displayName, setDisplayName] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  // Password form
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  // Preferences
+  const [defaultFocus, setDefaultFocus] = useState("full");
   const [typographyAudit, setTypographyAudit] = useState(true);
   const [storytelling, setStorytelling] = useState(true);
   const [emailNotify, setEmailNotify] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsMessage, setPrefsMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  // Delete account
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  // Load user data on mount
+  useEffect(() => {
+    async function loadProfile() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select(
+          "full_name, default_focus, typography_audit, storytelling, email_notify"
+        )
+        .eq("id", user.id)
+        .single();
+
+      const fullName =
+        profileRow?.full_name || user.user_metadata?.full_name || "User";
+      const email = user.email || "";
+      const initials = fullName
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+
+      const data: ProfileData = {
+        full_name: fullName,
+        email,
+        initials,
+        default_focus: profileRow?.default_focus ?? "full",
+        typography_audit: profileRow?.typography_audit ?? true,
+        storytelling: profileRow?.storytelling ?? true,
+        email_notify: profileRow?.email_notify ?? false,
+      };
+
+      setProfile(data);
+      setDisplayName(data.full_name);
+      setDefaultFocus(data.default_focus);
+      setTypographyAudit(data.typography_audit);
+      setStorytelling(data.storytelling);
+      setEmailNotify(data.email_notify);
+      setLoading(false);
+    }
+
+    loadProfile();
+  }, []);
+
+  async function handleUpdateProfile() {
+    setProfileSaving(true);
+    setProfileMessage(null);
+
+    const res = await fetch("/api/settings/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name: displayName }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      setProfileMessage({ type: "success", text: "Profile updated" });
+      router.refresh();
+    } else {
+      setProfileMessage({
+        type: "error",
+        text: data.error || "Failed to update profile",
+      });
+    }
+
+    setProfileSaving(false);
+  }
+
+  async function handleChangePassword() {
+    setPasswordSaving(true);
+    setPasswordMessage(null);
+
+    if (newPassword.length < 8) {
+      setPasswordMessage({
+        type: "error",
+        text: "Password must be at least 8 characters",
+      });
+      setPasswordSaving(false);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: "error", text: "Passwords do not match" });
+      setPasswordSaving(false);
+      return;
+    }
+
+    const res = await fetch("/api/settings/password", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      setPasswordMessage({ type: "success", text: "Password updated" });
+      setNewPassword("");
+      setConfirmPassword("");
+    } else {
+      setPasswordMessage({
+        type: "error",
+        text: data.error || "Failed to update password",
+      });
+    }
+
+    setPasswordSaving(false);
+  }
+
+  async function handleSavePreferences() {
+    setPrefsSaving(true);
+    setPrefsMessage(null);
+
+    const res = await fetch("/api/settings/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        default_focus: defaultFocus,
+        typography_audit: typographyAudit,
+        storytelling,
+        email_notify: emailNotify,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      setPrefsMessage({ type: "success", text: "Preferences saved" });
+    } else {
+      setPrefsMessage({
+        type: "error",
+        text: data.error || "Failed to save preferences",
+      });
+    }
+
+    setPrefsSaving(false);
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+
+    const res = await fetch("/api/settings/account", {
+      method: "DELETE",
+    });
+
+    if (res.ok) {
+      router.push("/");
+      router.refresh();
+    } else {
+      setDeleting(false);
+      setDeleteModalOpen(false);
+      setDeleteConfirm("");
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -41,37 +259,106 @@ export default function SettingsPage() {
       </h1>
 
       <div className="max-w-lg space-y-8">
-        {/* Profile */}
+        {/* ── Profile ── */}
         <section>
           <h2 className="font-display font-semibold text-lg tracking-tight text-ink-primary mb-4">
             Profile
           </h2>
           <div className="flex items-center gap-4 mb-6">
-            <Avatar size="lg" initials="DD" />
-            <button className="text-sm font-body text-mist hover:text-mist-dim transition-colors duration-fast">
-              Change avatar
-            </button>
+            <Avatar size="lg" initials={profile?.initials || "?"} />
           </div>
           <div className="space-y-4">
             <Input
               label="Display Name"
               id="display-name"
-              defaultValue="Daria Dzisko"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
             />
             <Input
               label="Email"
               id="email"
-              defaultValue="daria@example.com"
+              value={profile?.email || ""}
               disabled
               helperText="Email cannot be changed"
             />
-            <Button variant="secondary">Update Profile</Button>
+            {profileMessage && (
+              <Alert
+                status={profileMessage.type}
+                dismissible
+                onDismiss={() => setProfileMessage(null)}
+              >
+                {profileMessage.text}
+              </Alert>
+            )}
+            <Button
+              variant="secondary"
+              onClick={handleUpdateProfile}
+              disabled={
+                profileSaving ||
+                displayName.trim() === "" ||
+                displayName === profile?.full_name
+              }
+            >
+              {profileSaving ? "Saving..." : "Update Profile"}
+            </Button>
           </div>
         </section>
 
         <Divider />
 
-        {/* Review Preferences */}
+        {/* ── Change Password ── */}
+        <section>
+          <h2 className="font-display font-semibold text-lg tracking-tight text-ink-primary mb-4">
+            Change Password
+          </h2>
+          <div className="space-y-4">
+            <Input
+              label="New Password"
+              id="new-password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+            />
+            <Input
+              label="Confirm New Password"
+              id="confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+              error={
+                confirmPassword.length > 0 && newPassword !== confirmPassword
+                  ? "Passwords do not match"
+                  : undefined
+              }
+            />
+            {passwordMessage && (
+              <Alert
+                status={passwordMessage.type}
+                dismissible
+                onDismiss={() => setPasswordMessage(null)}
+              >
+                {passwordMessage.text}
+              </Alert>
+            )}
+            <Button
+              variant="secondary"
+              onClick={handleChangePassword}
+              disabled={
+                passwordSaving ||
+                newPassword.length < 8 ||
+                newPassword !== confirmPassword
+              }
+            >
+              {passwordSaving ? "Updating..." : "Change Password"}
+            </Button>
+          </div>
+        </section>
+
+        <Divider />
+
+        {/* ── Review Preferences ── */}
         <section>
           <h2 className="font-display font-semibold text-lg tracking-tight text-ink-primary mb-4">
             Review Preferences
@@ -81,6 +368,8 @@ export default function SettingsPage() {
               label="Default review focus"
               options={focusOptions}
               id="default-focus"
+              value={defaultFocus}
+              onChange={(e) => setDefaultFocus(e.target.value)}
             />
             <Toggle
               label="Include typography audit"
@@ -97,13 +386,28 @@ export default function SettingsPage() {
               checked={emailNotify}
               onChange={setEmailNotify}
             />
-            <Button variant="secondary">Save Preferences</Button>
+            {prefsMessage && (
+              <Alert
+                status={prefsMessage.type}
+                dismissible
+                onDismiss={() => setPrefsMessage(null)}
+              >
+                {prefsMessage.text}
+              </Alert>
+            )}
+            <Button
+              variant="secondary"
+              onClick={handleSavePreferences}
+              disabled={prefsSaving}
+            >
+              {prefsSaving ? "Saving..." : "Save Preferences"}
+            </Button>
           </div>
         </section>
 
         <Divider />
 
-        {/* Danger Zone */}
+        {/* ── Danger Zone ── */}
         <section>
           <h2 className="font-display font-semibold text-lg tracking-tight text-ink-primary mb-4">
             Danger Zone
@@ -131,8 +435,10 @@ export default function SettingsPage() {
       <Modal
         open={deleteModalOpen}
         onClose={() => {
-          setDeleteModalOpen(false);
-          setDeleteConfirm("");
+          if (!deleting) {
+            setDeleteModalOpen(false);
+            setDeleteConfirm("");
+          }
         }}
         size="sm"
         title="Are you sure?"
@@ -155,14 +461,16 @@ export default function SettingsPage() {
               setDeleteModalOpen(false);
               setDeleteConfirm("");
             }}
+            disabled={deleting}
           >
             Cancel
           </Button>
           <Button
             className="bg-error hover:bg-error-dim"
-            disabled={deleteConfirm !== "DELETE"}
+            disabled={deleteConfirm !== "DELETE" || deleting}
+            onClick={handleDeleteAccount}
           >
-            Delete Account
+            {deleting ? "Deleting..." : "Delete Account"}
           </Button>
         </div>
       </Modal>
