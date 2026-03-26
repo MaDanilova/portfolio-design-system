@@ -158,7 +158,7 @@ export default function ReviewDetailPage({
   const [review, setReview] = useState<ReviewData | null | undefined>(undefined);
 
   useEffect(() => {
-    setReview(getReview(id));
+    getReview(id).then(setReview);
   }, [id]);
 
   if (review === undefined) {

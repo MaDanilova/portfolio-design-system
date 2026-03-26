@@ -64,6 +64,12 @@ const navGroups: NavGroup[] = [
       { label: "Breadcrumb", href: "/design-system/components/breadcrumb" },
     ],
   },
+  {
+    label: "Architecture",
+    items: [
+      { label: "OOUX & IA", href: "/design-system/architecture" },
+    ],
+  },
 ];
 
 export function Sidebar() {

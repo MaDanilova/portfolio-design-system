@@ -191,52 +191,74 @@ export function validateReviewResponse(
   return { valid: true, data: data as unknown as ReviewData };
 }
 
-// --- Persistence ---
+// --- Persistence (Supabase) ---
 
-const STORAGE_KEY = "portfolio-reviews";
-const MAX_REVIEWS = 50;
+import { createClient } from "@/lib/supabase/client";
 
-export function saveReview(review: ReviewData): void {
-  const reviews = listReviews();
-  const existing = reviews.findIndex((r) => r.id === review.id);
-  if (existing >= 0) {
-    reviews[existing] = review;
-  } else {
-    reviews.unshift(review);
-  }
-
-  const trimmed = reviews.slice(0, MAX_REVIEWS);
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-  } catch {
-    const minimal = trimmed.slice(0, 10);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([review]));
-    }
-  }
+/** Map a Supabase row back to a ReviewData object */
+function rowToReview(row: Record<string, unknown>): ReviewData {
+  const data = row.feedback as Record<string, unknown>;
+  return {
+    ...data,
+    id: row.id as string,
+    name: (row.title as string) ?? (data.name as string),
+    overall: Number(row.overall_score ?? data.overall ?? 0),
+  } as ReviewData;
 }
 
-export function getReview(id: string): ReviewData | null {
-  const reviews = listReviews();
-  return reviews.find((r) => r.id === id) ?? null;
+export async function saveReview(review: ReviewData): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("reviews").upsert({
+    id: review.id,
+    user_id: user.id,
+    title: review.name,
+    portfolio_type: review.pageType ?? review.focus,
+    overall_score: review.overall,
+    status: "completed",
+    initials: review.initials,
+    focus: review.focus,
+    categories: review.categories,
+    feedback: review,
+  }, { onConflict: "id" });
+
+  if (error) throw new Error(error.message);
 }
 
-export function listReviews(): ReviewData[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+export async function getReview(id: string): Promise<ReviewData | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return null;
+  return rowToReview(data);
+}
+
+export async function listReviews(): Promise<ReviewData[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error || !data) return [];
+  return data.map((row) => rowToReview(row as Record<string, unknown>));
+}
+
+export async function deleteReview(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("reviews").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export function generateId(): string {
-  return `review-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  return crypto.randomUUID();
 }
 
 export function getInitials(name: string): string {

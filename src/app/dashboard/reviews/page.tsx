@@ -65,8 +65,10 @@ export default function MyReviewsPage() {
   const [sort, setSort] = useState("newest");
 
   useEffect(() => {
-    setAllReviews(listReviews());
-    setLoaded(true);
+    listReviews().then((data) => {
+      setAllReviews(data);
+      setLoaded(true);
+    });
   }, []);
 
   const filtered = allReviews

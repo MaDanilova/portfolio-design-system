@@ -44,8 +44,10 @@ export default function DashboardPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setReviews(listReviews());
-    setLoaded(true);
+    listReviews().then((data) => {
+      setReviews(data);
+      setLoaded(true);
+    });
   }, []);
 
   const stats = computeStats(reviews);

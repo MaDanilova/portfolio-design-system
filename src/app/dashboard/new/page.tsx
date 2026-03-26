@@ -256,10 +256,7 @@ export default function NewReviewPage() {
         criticalGaps: data.criticalGaps,
       };
 
-      saveReview(review);
-
-      // Brief pause so user sees "Generating feedback" step
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await saveReview(review);
 
       router.push(`/dashboard/reviews/${id}`);
     } catch (err) {
