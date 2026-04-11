@@ -4,6 +4,7 @@ interface ScoreProps {
   value: number;
   max?: number;
   variant?: "ring" | "bar";
+  size?: "sm" | "md";
   label?: string;
   className?: string;
 }
@@ -15,32 +16,36 @@ function getScoreColor(value: number, max: number) {
   return { stroke: "stroke-error", bg: "bg-error", text: "text-error" };
 }
 
-function ScoreRing({ value, max = 10, label, className }: ScoreProps) {
+function ScoreRing({ value, max = 10, size = "md", label, className }: ScoreProps) {
   const pct = value / max;
-  const radius = 24;
+  const isSm = size === "sm";
+  const svgSize = isSm ? 32 : 64;
+  const radius = isSm ? 12 : 24;
+  const strokeWidth = isSm ? 3 : 4;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - pct);
   const color = getScoreColor(value, max);
+  const center = svgSize / 2;
 
   return (
     <div className={cn("flex flex-col items-center gap-1.5", className)}>
-      <div className="relative grid place-items-center w-16 h-16">
-        <svg width={64} height={64} viewBox="0 0 64 64" className="-rotate-90 col-start-1 row-start-1">
+      <div className={cn("relative grid place-items-center", isSm ? "w-8 h-8" : "w-16 h-16")}>
+        <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} className="-rotate-90 col-start-1 row-start-1">
           <circle
-            cx={32} cy={32} r={radius}
-            fill="none" strokeWidth={4}
+            cx={center} cy={center} r={radius}
+            fill="none" strokeWidth={strokeWidth}
             className="stroke-surface-subtle"
           />
           <circle
-            cx={32} cy={32} r={radius}
-            fill="none" strokeWidth={4}
+            cx={center} cy={center} r={radius}
+            fill="none" strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             strokeLinecap="round"
             className={cn(color.stroke, "transition-all duration-300")}
           />
         </svg>
-        <span className="col-start-1 row-start-1 font-display font-bold text-lg text-ink-primary">
+        <span className={cn("col-start-1 row-start-1 font-display font-bold text-ink-primary", isSm ? "text-[10px]" : "text-lg")}>
           {value}
         </span>
       </div>

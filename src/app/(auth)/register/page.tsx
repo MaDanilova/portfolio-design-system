@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Alert } from "@/components/Alert";
@@ -23,8 +22,16 @@ export default function RegisterPage() {
     setError(null);
 
     // Client-side validation
+    if (fullName.trim().length === 0) {
+      setError("Full name is required.");
+      return;
+    }
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      setError("Password must include uppercase, lowercase, and a number.");
       return;
     }
     if (password !== confirmPassword) {
@@ -34,19 +41,19 @@ export default function RegisterPage() {
 
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: fullName,
+        email,
+        password,
+      }),
     });
 
-    if (authError) {
-      setError(authError.message);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError((data as { error?: string }).error || "Registration failed. Please try again.");
       setLoading(false);
       return;
     }
@@ -99,7 +106,7 @@ export default function RegisterPage() {
             type="password"
             id="password"
             placeholder="••••••••"
-            helperText="Minimum 8 characters"
+            helperText="Min 8 chars, uppercase, lowercase, number"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

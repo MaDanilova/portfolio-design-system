@@ -2,44 +2,44 @@
 
 @theme inline {
   /* ─── Surface scale ─── */
-  --color-surface-base: #0E0E0E;
-  --color-surface-raised: #161616;
-  --color-surface-overlay: #1E1E1E;
-  --color-surface-subtle: #252525;
+  --color-surface-base: #FFFFFF;
+  --color-surface-raised: #F7F7F7;
+  --color-surface-overlay: #FFFFFF;
+  --color-surface-subtle: #EBEBEB;
 
   /* ─── Ink scale ─── */
-  --color-ink-primary: #F0F0F0;
-  --color-ink-secondary: #A0A0A0;
-  --color-ink-muted: #666666;
-  --color-ink-inverse: #0E0E0E;
+  --color-ink-primary: #0E0E0E;
+  --color-ink-secondary: #6B6B6B;
+  --color-ink-muted: #767676;
+  --color-ink-inverse: #FFFFFF;
 
   /* ─── Accent: primary ─── */
-  --color-acid: #C8FF00;
-  --color-acid-dim: #B0E000;
+  --color-acid: #0E0E0E;
+  --color-acid-dim: #333333;
 
   /* ─── Accent: secondary ─── */
-  --color-mist: #A78BFA;
-  --color-mist-dim: #8B5CF6;
+  --color-mist: #6B6B6B;
+  --color-mist-dim: #555555;
 
   /* ─── Status ─── */
-  --color-error: #EF4444;
-  --color-error-dim: #DC2626;
-  --color-success: #22C55E;
-  --color-success-dim: #16A34A;
-  --color-warning: #F59E0B;
-  --color-warning-dim: #D97706;
+  --color-error: #DC2626;
+  --color-error-dim: #B91C1C;
+  --color-success: #15803D;
+  --color-success-dim: #166534;
+  --color-warning: #A16207;
+  --color-warning-dim: #854D0E;
 
   /* ─── Borders ─── */
-  --color-border: #2A2A2A;
-  --color-border-strong: #3A3A3A;
-  --color-border-accent: #C8FF00;
+  --color-border: #E0E0E0;
+  --color-border-strong: #CCCCCC;
+  --color-border-accent: #0E0E0E;
 
   /* ─── Shadows ─── */
-  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 24px rgba(200, 255, 0, 0.08);
+  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 24px rgba(0, 0, 0, 0.04);
 
   /* ─── Fonts ─── */
-  --font-display: var(--font-syne), "Syne", sans-serif;
+  --font-display: var(--font-inter), "Inter", sans-serif;
   --font-body: var(--font-inter), "Inter", sans-serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
 
@@ -72,6 +72,22 @@
   letter-spacing: var(--tracking-tightest);
 }
 
+/* ─── Texture backgrounds ─── */
+@utility bg-dots {
+  background-image: radial-gradient(circle, #D0D0D0 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@utility bg-diagonal {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    #EBEBEB 8px,
+    #EBEBEB 9px
+  );
+}
+
 /* ─── Keyframes (exceptions to GSAP rule: infinite loops) ─── */
 @keyframes slide {
   0% { transform: translateX(-100%); }
@@ -80,7 +96,7 @@
 
 /* ─── Base styles ─── */
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {

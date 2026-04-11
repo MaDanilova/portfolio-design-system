@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useCallback } from "react";
+import { useRef, useMemo, useEffect, useCallback, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import gsap from "gsap";
@@ -95,9 +95,9 @@ function NoisePlane({ scrollProgress }: { scrollProgress: React.MutableRefObject
       uMouse: { value: new THREE.Vector2(0.5, 0.5) },
       uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
       uScrollProgress: { value: 0 },
-      uColorAcid: { value: new THREE.Color("#C8FF00") },
-      uColorMist: { value: new THREE.Color("#A78BFA") },
-      uColorBase: { value: new THREE.Color("#0E0E0E") },
+      uColorAcid: { value: new THREE.Color("#0E0E0E") },
+      uColorMist: { value: new THREE.Color("#6B6B6B") },
+      uColorBase: { value: new THREE.Color("#FFFFFF") },
     }),
     []
   );
@@ -203,6 +203,3 @@ export function HeroCanvas() {
     </div>
   );
 }
-
-// Need useState for SSR check
-import { useState } from "react";

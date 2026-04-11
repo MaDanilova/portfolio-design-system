@@ -100,7 +100,7 @@ Convert visiting designers into users. Single-page, scroll-driven layout. No aut
 ## WebGL — Hero Noise Distortion
 
 ### Concept
-A full-screen fragment shader behind the hero that creates a living, breathing noise field. Think: dark liquid surface with subtle ridges of acid and mist color peeking through. Reacts to mouse position and fades out as the user scrolls past the hero.
+A full-screen fragment shader behind the hero that creates a living, breathing noise field. Think: light surface with subtle ridges of black and gray peeking through. Reacts to mouse position and fades out as the user scrolls past the hero.
 
 ### Technical spec
 
@@ -117,17 +117,17 @@ A full-screen fragment shader behind the hero that creates a living, breathing n
   - `uMouse` (vec2) — normalized mouse position (0–1), creates local distortion around cursor
   - `uResolution` (vec2) — viewport dimensions
   - `uScrollProgress` (float) — 0 at top, 1 when hero is fully scrolled past → controls fade-out
-  - `uColorAcid` (vec3) — acid #C8FF00 as RGB
-  - `uColorMist` (vec3) — mist #A78BFA as RGB
-  - `uColorBase` (vec3) — surface-base #0E0E0E as RGB
+  - `uColorAcid` (vec3) — acid #0E0E0E (black) as RGB
+  - `uColorMist` (vec3) — mist #6B6B6B (gray) as RGB
+  - `uColorBase` (vec3) — surface-base #FFFFFF (white) as RGB
 
 **Visual behavior:**
-- Base: dark noise field matching `surface-base` — barely visible at rest
+- Base: light noise field matching `surface-base` (white) — barely visible at rest
 - Noise type: layered simplex noise (2–3 octaves), slow drift (`uTime * 0.15`)
 - Color mapping: noise value drives mix between base → acid (peaks) and base → mist (valleys)
-  - Most of the canvas stays near base color (dark) — only ridges/peaks show color
-  - Acid appears on high noise values (bright ridges)
-  - Mist appears on mid-range values (subtle fills between ridges)
+  - Most of the canvas stays near base color (white) — only ridges/peaks show color
+  - Acid (black) appears on high noise values (dark ridges)
+  - Mist (gray) appears on mid-range values (subtle fills between ridges)
   - Overall intensity is LOW — `mix(base, color, noiseValue * 0.15)` — this is background, not a light show
 - Mouse interaction:
   - Within ~200px radius of cursor: noise amplitude increases slightly, creating a gentle ripple/warp

@@ -7,10 +7,11 @@ import gsap from "gsap";
 interface TooltipProps {
   content: string;
   placement?: "top" | "bottom";
+  className?: string;
   children: ReactNode;
 }
 
-export function Tooltip({ content, placement = "top", children }: TooltipProps) {
+export function Tooltip({ content, placement = "top", className, children }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const tipRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -37,7 +38,7 @@ export function Tooltip({ content, placement = "top", children }: TooltipProps) 
   };
 
   return (
-    <span className="relative inline-flex" onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
+    <span className={cn("relative inline-flex", className)} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
       {children}
       {visible && (
         <div

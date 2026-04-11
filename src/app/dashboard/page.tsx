@@ -1,146 +1,307 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { FileSearch } from "lucide-react";
-import { Breadcrumb } from "@/components/Breadcrumb";
-import { Card } from "@/components/Card";
-import { Badge } from "@/components/Badge";
-import { Score } from "@/components/Score";
-import { Avatar } from "@/components/Avatar";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { FileUpload } from "@/components/FileUpload";
+import { Textarea } from "@/components/Textarea";
+import { Select } from "@/components/Select";
 import { Button } from "@/components/Button";
-import { EmptyState } from "@/components/EmptyState";
-import { listReviews, getScoreEntries, SCORE_LABELS, type ReviewData } from "@/lib/reviews";
+import { Spinner } from "@/components/Spinner";
+import { ProgressBar } from "@/components/ProgressBar";
+import { Alert } from "@/components/Alert";
+import {
+  saveReview,
+  buildReviewData,
+} from "@/lib/reviews";
+import { focusOptions, pageTypeOptions, levelOptions } from "@/lib/constants";
 
-function computeStats(reviews: ReviewData[]) {
-  const total = reviews.length;
-  const avgScore =
-    total > 0
-      ? (reviews.reduce((sum, r) => sum + r.overall, 0) / total).toFixed(1)
-      : "—";
+type ProcessingStep = "uploading" | "analyzing" | "scoring" | "generating";
 
-  // Find top category by counting highest-scored category per review
-  const catCounts: Record<string, number> = {};
-  for (const r of reviews) {
-    const entries = getScoreEntries(r.scores);
-    const top = entries.sort((a, b) => b[1] - a[1])[0];
-    if (top) {
-      const label = SCORE_LABELS[top[0]] ?? top[0];
-      catCounts[label] = (catCounts[label] || 0) + 1;
-    }
+const steps: { id: ProcessingStep; label: string }[] = [
+  { id: "uploading", label: "Uploading" },
+  { id: "analyzing", label: "Analyzing" },
+  { id: "scoring", label: "Scoring" },
+  { id: "generating", label: "Generating feedback" },
+];
+
+const CONTEXT_MAX = 500;
+const TIMEOUT_MS = 90_000;
+
+function mapReviewApiError(status: number, apiError?: string): string {
+  if (status === 401) return "Your session expired. Please sign in again.";
+  if (status === 422) {
+    return apiError || "This does not appear to be a design portfolio.";
   }
-  const topCategory =
-    Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
-
-  return [
-    { label: "Total Reviews", value: String(total), trend: total > 0 ? `${total} total` : "None yet", trendVariant: total > 0 ? "success" as const : "default" as const },
-    { label: "Average Score", value: avgScore, trend: total > 0 ? "Across all reviews" : "No data", trendVariant: "default" as const },
-    { label: "Top Category", value: topCategory, trend: total > 0 ? "Highest rated" : "No data", trendVariant: "default" as const },
-  ];
+  if (status === 413) return "File is too large. Please reduce file size.";
+  if (status === 429) return "Too many requests. Please wait a moment.";
+  return apiError || "Review failed. Please try again.";
 }
 
-export default function DashboardPage() {
-  const [reviews, setReviews] = useState<ReviewData[]>([]);
-  const [loaded, setLoaded] = useState(false);
+export default function DashboardCanvasPage() {
+  const router = useRouter();
+  const [processing, setProcessing] = useState(false);
+  const [currentStep, setCurrentStep] = useState<ProcessingStep>("uploading");
+  const [error, setError] = useState<string | null>(null);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [context, setContext] = useState("");
+  const [focus, setFocus] = useState("full");
+  const [pageType, setPageType] = useState("auto");
+  const [level, setLevel] = useState("not-sure");
+  const [showOptions, setShowOptions] = useState(false);
+
+  // Smooth progress
+  const [smoothProgress, setSmoothProgress] = useState(0);
+  const stepIndex = steps.findIndex((s) => s.id === currentStep);
+  const targetProgress = ((stepIndex + 1) / steps.length) * 100;
+
+  const abortRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
-    listReviews().then((data) => {
-      setReviews(data);
-      setLoaded(true);
-    });
+    if (!processing) {
+      setSmoothProgress(0);
+      return;
+    }
+    const stepBase = (stepIndex / steps.length) * 100;
+    const stepCeil = targetProgress;
+    setSmoothProgress(stepBase);
+
+    const interval = setInterval(() => {
+      setSmoothProgress((prev) => {
+        const next = prev + 1.5;
+        return next >= stepCeil - 2 ? prev : next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [processing, stepIndex, targetProgress]);
+
+  const handleFile = useCallback((f: File) => {
+    setFile(f);
+    setFileName(f.name);
+    setError(null);
   }, []);
 
-  const stats = computeStats(reviews);
-  const recent = reviews.slice(0, 5);
-  const hasReviews = recent.length > 0;
+  const handleClearFile = useCallback(() => {
+    setFile(null);
+    setFileName(null);
+  }, []);
 
-  if (!loaded) return null;
+  const handleCancel = useCallback(() => {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+    setProcessing(false);
+    setError(null);
+  }, []);
 
-  return (
-    <div>
-      <Breadcrumb items={[{ label: "Dashboard" }]} className="mb-6" />
+  const handleSubmit = async () => {
+    if (!file) {
+      setError("Please upload a portfolio file.");
+      return;
+    }
 
-      <h1 className="font-display font-bold text-3xl tracking-tight text-ink-primary">
-        Welcome back
-      </h1>
-      <p className="text-ink-secondary mt-1 mb-8">
-        Here&apos;s a summary of your portfolio reviews.
-      </p>
+    setProcessing(true);
+    setError(null);
+    setCurrentStep("uploading");
+    cancelledRef.current = false;
 
-      {/* Stats row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <p className="text-xs text-ink-muted uppercase tracking-wider font-body">
-              {stat.label}
-            </p>
-            <p className="font-display font-bold text-2xl text-ink-primary mt-1">
-              {stat.value}
-            </p>
-            <Badge variant={stat.trendVariant} className="mt-2">
-              {stat.trend}
-            </Badge>
-          </Card>
-        ))}
-      </div>
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-      {/* Recent reviews */}
-      <h2 className="font-display font-semibold text-lg tracking-tight text-ink-primary mb-4">
-        Recent Reviews
-      </h2>
+    try {
+      setCurrentStep("analyzing");
 
-      {hasReviews ? (
-        <div className="flex flex-col gap-3 mb-10">
-          {recent.map((review) => (
-            <Link key={review.id} href={`/dashboard/reviews/${review.id}`}>
-              <Card variant="interactive" className="flex items-center gap-4">
-                <Avatar size="md" initials={review.initials} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-ink-primary">
-                    {review.name}
-                  </p>
-                  <p className="text-xs text-ink-muted">{review.date}</p>
-                  <div className="flex gap-1.5 mt-1.5">
-                    {review.categories.map((cat) => (
-                      <Badge key={cat} variant="default">
-                        {cat}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <Score
-                  variant="ring"
-                  value={review.overall}
-                  className="shrink-0"
-                />
-              </Card>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={FileSearch}
-          heading="No reviews yet"
-          description="Upload your first portfolio to get AI-powered design feedback."
-          action={
-            <Link href="/dashboard/new">
-              <Button>Upload Your First Portfolio</Button>
-            </Link>
-          }
-        />
-      )}
+      const formData = new FormData();
+      formData.append("file", file);
+      if (context) formData.append("context", context);
+      formData.append("focus", focus);
+      if (pageType !== "auto") formData.append("pageType", pageType);
+      if (level !== "not-sure") formData.append("level", level);
 
-      {/* Quick upload CTA */}
-      {hasReviews && (
-        <Card variant="featured" className="flex items-center justify-between">
-          <p className="text-sm text-ink-primary font-medium">
-            Ready for another review?
+      const res = await fetch("/api/review", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+
+      setCurrentStep("scoring");
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = (data as { error?: string }).error;
+        throw new Error(mapReviewApiError(res.status, msg));
+      }
+
+      const data = await res.json();
+      setCurrentStep("generating");
+
+      const focusLabel =
+        focusOptions.find((o) => o.value === focus)?.label ?? "Full Review";
+      const review = buildReviewData(data, fileName, focusLabel);
+      await saveReview(review);
+
+      router.push(`/dashboard/reviews/${review.id}`);
+    } catch (err) {
+      if (cancelledRef.current) return;
+      setProcessing(false);
+
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Review timed out. Please try again with a smaller file.");
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Something went wrong."
+        );
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  // Processing state — centered on canvas
+  if (processing && !error) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[calc(100vh-3.5rem)] md:min-h-screen bg-dots">
+        <div className="flex flex-col items-center max-w-sm w-full px-6">
+          <Spinner size="lg" className="mb-6" />
+          <ProgressBar
+            value={Math.max(smoothProgress, targetProgress - 15)}
+            className="w-full mb-6"
+          />
+
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-4">
+            {steps.map((step, i) => (
+              <span
+                key={step.id}
+                className={cn(
+                  "text-sm font-body",
+                  i === stepIndex
+                    ? "text-ink-primary font-medium"
+                    : i < stepIndex
+                      ? "text-ink-primary"
+                      : "text-ink-muted"
+                )}
+              >
+                {i < stepIndex ? "\u2713 " : ""}
+                {step.label}
+              </span>
+            ))}
+          </div>
+
+          <p className="text-xs text-ink-muted mb-6">
+            This usually takes 30\u201360 seconds
           </p>
-          <Link href="/dashboard/new">
-            <Button>Upload Portfolio</Button>
-          </Link>
-        </Card>
-      )}
+
+          <Button variant="ghost" onClick={handleCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Default state — canvas with drop zone
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center min-h-[calc(100vh-3.5rem)] md:min-h-screen bg-dots px-6">
+      <div className="w-full max-w-lg">
+        {/* Hero text */}
+        <div className="text-center mb-8">
+          <h1 className="font-display font-bold text-3xl md:text-4xl tracking-tight text-ink-primary mb-2">
+            Review your portfolio
+          </h1>
+          <p className="text-ink-secondary text-sm">
+            Drop a PDF or image and get AI feedback in under a minute.
+          </p>
+        </div>
+
+        {error && (
+          <Alert
+            status="error"
+            title="Review failed"
+            dismissible
+            onDismiss={() => setError(null)}
+            className="mb-6"
+          >
+            {error}
+          </Alert>
+        )}
+
+        {/* Drop zone */}
+        <div className="bg-surface-base rounded-xl border border-border p-1">
+          <FileUpload
+            accept=".pdf,.png,.jpg,.jpeg,.webp"
+            onFile={handleFile}
+            onClear={handleClearFile}
+            state={fileName ? "success" : undefined}
+            fileName={fileName ?? undefined}
+          />
+        </div>
+
+        {/* Collapsible options */}
+        <div className="mt-4">
+          <button
+            onClick={() => setShowOptions(!showOptions)}
+            className="flex items-center gap-2 text-xs text-ink-muted hover:text-ink-secondary transition-colors duration-fast mx-auto"
+          >
+            {showOptions ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+            {showOptions ? "Hide options" : "Review options"}
+          </button>
+
+          {showOptions && (
+            <div className="mt-4 space-y-4 bg-surface-base rounded-xl border border-border p-5">
+              <Textarea
+                label="Context (optional)"
+                placeholder="Any specific areas you want feedback on?"
+                id="context"
+                value={context}
+                onChange={(e) => setContext(e.target.value.slice(0, CONTEXT_MAX))}
+                maxLength={CONTEXT_MAX}
+              />
+
+              <div className="grid grid-cols-3 gap-3">
+                <Select
+                  label="Page type"
+                  options={pageTypeOptions}
+                  id="page-type"
+                  value={pageType}
+                  onChange={(e) => setPageType(e.target.value)}
+                />
+                <Select
+                  label="Your level"
+                  options={levelOptions}
+                  id="level"
+                  value={level}
+                  onChange={(e) => setLevel(e.target.value)}
+                />
+                <Select
+                  label="Focus"
+                  options={focusOptions}
+                  id="focus"
+                  value={focus}
+                  onChange={(e) => setFocus(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Submit */}
+        {file && (
+          <div className="mt-6 flex justify-center">
+            <Button onClick={handleSubmit} disabled={processing}>
+              Start Review
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

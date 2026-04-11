@@ -28,7 +28,8 @@ export default function LoginPage() {
     });
 
     if (authError) {
-      setError(authError.message);
+      // Generic message prevents user enumeration — never reveal whether account exists
+      setError("Invalid email or password");
       setLoading(false);
       return;
     }

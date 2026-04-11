@@ -28,7 +28,6 @@ export interface PositioningRewrite {
   bold: string;
 }
 
-// New 9-dimension scores (Portfolio Surgeon v1.3)
 export interface ReviewScores {
   positioning: number;
   caseStudy: number;
@@ -41,14 +40,6 @@ export interface ReviewScores {
   accessibility: number;
 }
 
-// Legacy 4-dimension scores (backward compat)
-export interface LegacyScores {
-  layout: number;
-  typography: number;
-  hierarchy: number;
-  storytelling: number;
-}
-
 export interface ReviewData {
   id: string;
   name: string;
@@ -56,14 +47,13 @@ export interface ReviewData {
   date: string;
   focus: string;
   overall: number;
-  scores: ReviewScores | LegacyScores;
+  scores: ReviewScores;
   summary: string;
   strengths: string[];
   improvements: string[];
   pages: ReviewPage[];
   recommendations: Recommendation[];
   categories: string[];
-  // v1.3 fields
   pageType?: string;
   competitivePosition?: string;
   levelAssessment?: LevelAssessment;
@@ -73,13 +63,9 @@ export interface ReviewData {
 
 // --- Score dimension helpers ---
 
-const NEW_SCORE_KEYS: (keyof ReviewScores)[] = [
+const SCORE_KEYS: (keyof ReviewScores)[] = [
   "positioning", "caseStudy", "visualDesign", "strategicDepth",
   "aiTools", "personality", "infoArchitecture", "copywriting", "accessibility",
-];
-
-const LEGACY_SCORE_KEYS: (keyof LegacyScores)[] = [
-  "layout", "typography", "hierarchy", "storytelling",
 ];
 
 export const SCORE_LABELS: Record<string, string> = {
@@ -92,19 +78,10 @@ export const SCORE_LABELS: Record<string, string> = {
   infoArchitecture: "Information Architecture",
   copywriting: "Copywriting Quality",
   accessibility: "Accessibility",
-  layout: "Layout",
-  typography: "Typography",
-  hierarchy: "Visual Hierarchy",
-  storytelling: "Storytelling",
 };
 
-export function isNewScores(scores: ReviewScores | LegacyScores): scores is ReviewScores {
-  return "positioning" in scores;
-}
-
-export function getScoreEntries(scores: ReviewScores | LegacyScores): [string, number][] {
-  const keys = isNewScores(scores) ? NEW_SCORE_KEYS : LEGACY_SCORE_KEYS;
-  return keys.map((k) => [k, (scores as unknown as Record<string, number>)[k]]);
+export function getScoreEntries(scores: ReviewScores): [string, number][] {
+  return SCORE_KEYS.map((k) => [k, scores[k]]);
 }
 
 // --- Validation ---
@@ -133,15 +110,12 @@ export function validateReviewResponse(
     return { valid: false, error: "Missing scores object." };
   }
 
-  const hasNew = NEW_SCORE_KEYS.every((k) => k in scores);
-  const hasLegacy = LEGACY_SCORE_KEYS.every((k) => k in scores);
-
-  if (!hasNew && !hasLegacy) {
-    return { valid: false, error: "Scores must have 9 new or 4 legacy dimensions." };
+  const hasAll = SCORE_KEYS.every((k) => k in scores);
+  if (!hasAll) {
+    return { valid: false, error: "Scores must have all 9 dimensions." };
   }
 
-  const keysToCheck = hasNew ? NEW_SCORE_KEYS : LEGACY_SCORE_KEYS;
-  for (const key of keysToCheck) {
+  for (const key of SCORE_KEYS) {
     if (!isNum(scores[key])) {
       return { valid: false, error: `Invalid or missing score: ${key}.` };
     }
@@ -195,7 +169,10 @@ export function validateReviewResponse(
 
 import { createClient } from "@/lib/supabase/client";
 
-/** Map a Supabase row back to a ReviewData object */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Coerce Supabase JSON column (stored as the full ReviewData) back into a
+// typed object, preferring DB-level columns for id/name/overall.
 function rowToReview(row: Record<string, unknown>): ReviewData {
   const data = row.feedback as Record<string, unknown>;
   return {
@@ -228,11 +205,18 @@ export async function saveReview(review: ReviewData): Promise<void> {
 }
 
 export async function getReview(id: string): Promise<ReviewData | null> {
+  if (!UUID_RE.test(id)) return null;
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
     .eq("id", id)
+    .eq("user_id", user.id)
     .single();
 
   if (error || !data) return null;
@@ -241,9 +225,15 @@ export async function getReview(id: string): Promise<ReviewData | null> {
 
 export async function listReviews(): Promise<ReviewData[]> {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("reviews")
     .select("*")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -252,8 +242,20 @@ export async function listReviews(): Promise<ReviewData[]> {
 }
 
 export async function deleteReview(id: string): Promise<void> {
+  if (!UUID_RE.test(id)) throw new Error("Invalid review ID");
   const supabase = createClient();
-  const { error } = await supabase.from("reviews").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+
+  const { error } = await supabase
+    .from("reviews")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw new Error(error.message);
 }
 
@@ -270,10 +272,46 @@ export function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export function deriveCategories(scores: ReviewScores | LegacyScores): string[] {
+export function deriveCategories(scores: ReviewScores): string[] {
   const entries = getScoreEntries(scores);
-  return entries
+  return [...entries]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
     .map(([key]) => SCORE_LABELS[key] ?? key);
+}
+
+export function buildReviewData(
+  apiResponse: Record<string, unknown>,
+  fileName: string | null,
+  focusLabel: string,
+): ReviewData {
+  const id = generateId();
+  const name =
+    (apiResponse.name as string) || fileName?.replace(/\.[^.]+$/, "") || "Untitled Portfolio";
+  const scores = apiResponse.scores as ReviewScores;
+
+  return {
+    id,
+    name,
+    initials: getInitials(name),
+    date: new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    focus: focusLabel,
+    overall: apiResponse.overall as number,
+    scores,
+    summary: apiResponse.summary as string,
+    strengths: apiResponse.strengths as string[],
+    improvements: apiResponse.improvements as string[],
+    pages: apiResponse.pages as ReviewData["pages"],
+    recommendations: apiResponse.recommendations as ReviewData["recommendations"],
+    categories: deriveCategories(scores),
+    pageType: apiResponse.pageType as string | undefined,
+    competitivePosition: apiResponse.competitivePosition as string | undefined,
+    levelAssessment: (apiResponse.levelAssessment as ReviewData["levelAssessment"]) ?? undefined,
+    positioningRewrite: (apiResponse.positioningRewrite as ReviewData["positioningRewrite"]) ?? undefined,
+    criticalGaps: apiResponse.criticalGaps as string[] | undefined,
+  };
 }

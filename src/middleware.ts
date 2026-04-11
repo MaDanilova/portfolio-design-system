@@ -44,6 +44,19 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Design system is local-only (dev environment)
+  if (pathname.startsWith("/design-system")) {
+    const host = request.headers.get("host") ?? "";
+    const isLocal =
+      host.startsWith("localhost") || host.startsWith("127.0.0.1");
+    if (!isLocal) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
   // Redirect unauthenticated users away from dashboard
   if (!user && pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone();
@@ -62,5 +75,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register"],
+  matcher: ["/dashboard/:path*", "/design-system/:path*", "/login", "/register"],
 };

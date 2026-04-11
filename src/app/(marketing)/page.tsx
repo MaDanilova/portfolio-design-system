@@ -49,7 +49,7 @@ const steps = [
   {
     icon: Upload,
     title: "Upload",
-    description: "Drop your portfolio PDF, images, or paste a URL. We accept any format.",
+    description: "Drop your portfolio PDF or images. We analyze every page in seconds.",
   },
   {
     icon: Sparkles,
@@ -224,7 +224,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Trust Strip ─── */}
-      <section className="py-8 border-y border-border">
+      <section className="py-8 border-y border-border bg-dots">
         <div className="max-w-full px-6 md:px-10 lg:px-16">
           <div className="max-w-wide mx-auto flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
             <span className="text-xs text-ink-muted tracking-widest uppercase">
@@ -242,7 +242,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── How It Works ─── */}
-      <section id="how-it-works">
+      <section id="how-it-works" className="bg-dots">
         <Section eyebrow="How It Works" heading="Four steps to a stronger portfolio.">
           <div className="grid md:grid-cols-2 gap-6 mt-10">
             {steps.map((step, i) => (
@@ -326,6 +326,7 @@ export default function LandingPage() {
       </Section>
 
       {/* ─── Testimonials ─── */}
+      <div className="bg-diagonal">
       <Section eyebrow="What Designers Say" heading="Real feedback on real feedback.">
         <div className="grid md:grid-cols-3 gap-6 mt-10">
           {testimonials.map((t, i) => (
@@ -351,6 +352,8 @@ export default function LandingPage() {
           ))}
         </div>
       </Section>
+
+      </div>
 
       {/* ─── Pricing ─── */}
       <section id="pricing">
@@ -389,7 +392,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Final CTA ─── */}
-      <section className="py-24">
+      <section className="py-24 bg-dots">
         <div className="max-w-full px-6 md:px-10 lg:px-16">
           <div className="max-w-content mx-auto text-center">
             <div className="overflow-hidden">

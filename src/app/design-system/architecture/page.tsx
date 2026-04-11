@@ -288,11 +288,11 @@ function OOUXTab() {
           </div>
           <div className="bg-surface-raised border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Database className="w-4 h-4 text-ink-muted" />
-              <span className="font-body font-medium text-sm text-ink-primary">localStorage</span>
+              <Database className="w-4 h-4 text-mist" />
+              <span className="font-body font-medium text-sm text-ink-primary">Supabase Reviews</span>
             </div>
-            <p className="text-xs text-ink-muted font-body">Reviews stored client-side (max 50)</p>
-            <p className="text-xs text-ink-muted font-body">Privacy-first: no server review storage</p>
+            <p className="text-xs text-ink-muted font-body">Reviews stored in reviews table (per user)</p>
+            <p className="text-xs text-ink-muted font-body">Full review JSON in feedback column</p>
           </div>
         </div>
       </div>
@@ -414,7 +414,7 @@ const dataFlow: FlowStep[] = [
   { label: "API Route", icon: Zap, color: "warning", sub: "/api/review" },
   { label: "GPT-4o", icon: Zap, color: "warning", sub: "Vision analysis" },
   { label: "Validate", icon: Shield, color: "default", sub: "Portfolio gate" },
-  { label: "Save", icon: Database, color: "default", sub: "localStorage" },
+  { label: "Save", icon: Database, color: "default", sub: "Supabase" },
   { label: "Display", icon: Eye, color: "acid", sub: "/reviews/:id" },
 ];
 

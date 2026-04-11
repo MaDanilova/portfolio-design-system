@@ -6,16 +6,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // If Supabase isn't configured, show dashboard with fallback user
+  // If Supabase isn't configured, block access — never expose dashboard without auth
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   ) {
-    return (
-      <DashboardShell user={{ name: "Guest", email: "setup@supabase.first", initials: "G" }}>
-        {children}
-      </DashboardShell>
-    );
+    redirect("/login");
   }
 
   const { createClient } = await import("@/lib/supabase/server");

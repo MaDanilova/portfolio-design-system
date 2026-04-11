@@ -78,7 +78,7 @@ export function Sidebar() {
   return (
     <aside className="w-60 shrink-0 border-r border-border h-screen sticky top-0 overflow-y-auto py-8 px-4">
       <Link href="/design-system" className="block mb-8 px-3">
-        <p className="text-xs font-body font-medium tracking-widest uppercase text-acid">
+        <p className="text-xs font-body font-semibold tracking-widest uppercase text-ink-primary">
           Design System
         </p>
         <p className="text-sm text-ink-muted mt-1">Portfolio Review</p>

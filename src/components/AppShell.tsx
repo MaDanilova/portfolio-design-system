@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 
+// Routes split across three shells: design-system (sidebar), dashboard (own layout), everything else (no shell)
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isDashboard = pathname.startsWith("/dashboard");
